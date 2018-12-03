@@ -4242,7 +4242,9 @@ class ConfigSearch(Config):
                    torrent_label=None, torrent_label_anime=None, torrent_path=None, torrent_verify_cert=None,
                    torrent_seed_time=None, torrent_paused=None, torrent_high_bandwidth=None,
                    torrent_rpcurl=None, torrent_auth_type=None, ignore_words=None, trackers_list=None, require_words=None, ignored_subs_list=None,
-                   syno_dsm_host=None, syno_dsm_user=None, syno_dsm_pass=None, syno_dsm_path=None):
+                   syno_dsm_host=None, syno_dsm_user=None, syno_dsm_pass=None, syno_dsm_path=None,
+                   use_ddls=None, ddl_method=None, ddl_username=None, ddl_password=None, ddl_host=None,
+                   jdownloader_device_name=None, jdownloader_auto_start=None):
 
         results = []
 
@@ -4259,9 +4261,11 @@ class ConfigSearch(Config):
 
         sickbeard.USE_NZBS = config.checkbox_to_value(use_nzbs)
         sickbeard.USE_TORRENTS = config.checkbox_to_value(use_torrents)
+        sickbeard.USE_DDLS = config.checkbox_to_value(use_ddls)
 
         sickbeard.NZB_METHOD = nzb_method
         sickbeard.TORRENT_METHOD = torrent_method
+        sickbeard.DDL_METHOD = ddl_method
         sickbeard.USENET_RETENTION = try_int(usenet_retention, 500)
 
         sickbeard.IGNORE_WORDS = ignore_words if ignore_words else ""
@@ -4314,6 +4318,12 @@ class ConfigSearch(Config):
         sickbeard.TORRENT_HOST = config.clean_url(torrent_host)
         sickbeard.TORRENT_RPCURL = torrent_rpcurl
         sickbeard.TORRENT_AUTH_TYPE = torrent_auth_type
+
+        sickbeard.DDL_USERNAME = ddl_username
+        sickbeard.DDL_PASSWORD = ddl_password
+        sickbeard.DDL_HOST = ddl_host
+        sickbeard.JDOWNLOADER_AUTO_START = config.checkbox_to_value(jdownloader_auto_start)
+        sickbeard.JDOWNLOADER_DEVICE_NAME = jdownloader_device_name
 
         sickbeard.SYNOLOGY_DSM_HOST = config.clean_url(syno_dsm_host)
         sickbeard.SYNOLOGY_DSM_USERNAME = syno_dsm_user
@@ -4748,86 +4758,266 @@ class ConfigProviders(Config):
                 torrentRssProviderDict[cur_id].enabled = cur_enabled
 
         # dynamically load provider settings
-        for curProvider in sickbeard.providers.sortedProviderList():
-            if hasattr(curProvider, 'custom_url'):
-                curProvider.custom_url = str(kwargs.get(curProvider.get_id('_custom_url'), '')).strip()
+        # dynamically load provider settings
+        for curTorrentProvider in [prov for prov in sickbeard.providers.sortedProviderList() if
+                                   prov.provider_type == GenericProvider.TORRENT]:
 
-            if hasattr(curProvider, 'minseed'):
-                curProvider.minseed = int(str(kwargs.get(curProvider.get_id('_minseed'), 0)).strip())
+            if hasattr(curTorrentProvider, 'custom_url'):
+                try:
+                    curTorrentProvider.custom_url = str(kwargs[curTorrentProvider.get_id() + '_custom_url']).strip()
+                except Exception:
+                    curTorrentProvider.custom_url = None
 
-            if hasattr(curProvider, 'minleech'):
-                curProvider.minleech = int(str(kwargs.get(curProvider.get_id('_minleech'), 0)).strip())
+            if hasattr(curTorrentProvider, 'minseed'):
+                try:
+                    curTorrentProvider.minseed = int(str(kwargs[curTorrentProvider.get_id() + '_minseed']).strip())
+                except Exception:
+                    curTorrentProvider.minseed = 0
 
-            if hasattr(curProvider, 'ratio'):
-                if curProvider.get_id('_ratio') in kwargs:
-                    ratio = str(kwargs.get(curProvider.get_id('_ratio'))).strip()
-                    print (ratio)
-                    if ratio in ('None', None, ''):
-                        curProvider.ratio = None
-                    else:
-                        curProvider.ratio = max(float(ratio), -1)
-                else:
-                    curProvider.ratio = None
+            if hasattr(curTorrentProvider, 'minleech'):
+                try:
+                    curTorrentProvider.minleech = int(str(kwargs[curTorrentProvider.get_id() + '_minleech']).strip())
+                except Exception:
+                    curTorrentProvider.minleech = 0
 
-            if hasattr(curProvider, 'digest'):
-                curProvider.digest = str(kwargs.get(curProvider.get_id('_digest'), '')).strip() or None
+            if hasattr(curTorrentProvider, 'ratio'):
+                try:
+                    ratio = float(str(kwargs[curTorrentProvider.get_id() + '_ratio']).strip())
+                    curTorrentProvider.ratio = (ratio, -1)[ratio < 0]
+                except Exception:
+                    curTorrentProvider.ratio = None
 
-            if hasattr(curProvider, 'hash'):
-                curProvider.hash = str(kwargs.get(curProvider.get_id('_hash'), '')).strip() or None
+            if hasattr(curTorrentProvider, 'digest'):
+                try:
+                    curTorrentProvider.digest = str(kwargs[curTorrentProvider.get_id() + '_digest']).strip()
+                except Exception:
+                    curTorrentProvider.digest = None
 
-            if hasattr(curProvider, 'api_key'):
-                curProvider.api_key = str(kwargs.get(curProvider.get_id('_api_key'), '')).strip() or None
+            if hasattr(curTorrentProvider, 'hash'):
+                try:
+                    curTorrentProvider.hash = str(kwargs[curTorrentProvider.get_id() + '_hash']).strip()
+                except Exception:
+                    curTorrentProvider.hash = None
 
-            if hasattr(curProvider, 'username'):
-                curProvider.username = str(kwargs.get(curProvider.get_id('_username'), '')).strip() or None
+            if hasattr(curTorrentProvider, 'api_key'):
+                try:
+                    curTorrentProvider.api_key = str(kwargs[curTorrentProvider.get_id() + '_api_key']).strip()
+                except Exception:
+                    curTorrentProvider.api_key = None
 
-            if hasattr(curProvider, 'password'):
-                curProvider.password = filters.unhide(curProvider.password, str(kwargs.get(curProvider.get_id('_password'), '')).strip())
+            if hasattr(curTorrentProvider, 'username'):
+                try:
+                    curTorrentProvider.username = str(kwargs[curTorrentProvider.get_id() + '_username']).strip()
+                except Exception:
+                    curTorrentProvider.username = None
 
-            if hasattr(curProvider, 'passkey'):
-                curProvider.passkey = filters.unhide(curProvider.passkey, str(kwargs.get(curProvider.get_id('_passkey'), '')).strip())
+            if hasattr(curTorrentProvider, 'password'):
+                try:
+                    curTorrentProvider.password = str(kwargs[curTorrentProvider.get_id() + '_password']).strip()
+                except Exception:
+                    curTorrentProvider.password = None
 
-            if hasattr(curProvider, 'pin'):
-                curProvider.pin = filters.unhide(curProvider.pin, str(kwargs.get(curProvider.get_id('_pin'), '')).strip())
+            if hasattr(curTorrentProvider, 'passkey'):
+                try:
+                    curTorrentProvider.passkey = str(kwargs[curTorrentProvider.get_id() + '_passkey']).strip()
+                except Exception:
+                    curTorrentProvider.passkey = None
 
-            if hasattr(curProvider, 'confirmed'):
-                curProvider.confirmed = config.checkbox_to_value(kwargs.get(curProvider.get_id('_confirmed')))
+            if hasattr(curTorrentProvider, 'pin'):
+                try:
+                    curTorrentProvider.pin = str(kwargs[curTorrentProvider.get_id() + '_pin']).strip()
+                except Exception:
+                    curTorrentProvider.pin = None
 
-            if hasattr(curProvider, 'ranked'):
-                curProvider.ranked = config.checkbox_to_value(kwargs.get(curProvider.get_id('_ranked')))
+            if hasattr(curTorrentProvider, 'confirmed'):
+                try:
+                    curTorrentProvider.confirmed = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_confirmed'])
+                except Exception:
+                    curTorrentProvider.confirmed = 0
 
-            if hasattr(curProvider, 'engrelease'):
-                curProvider.engrelease = config.checkbox_to_value(kwargs.get(curProvider.get_id('_engrelease')))
+            if hasattr(curTorrentProvider, 'ranked'):
+                try:
+                    curTorrentProvider.ranked = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_ranked'])
+                except Exception:
+                    curTorrentProvider.ranked = 0
 
-            if hasattr(curProvider, 'onlyspasearch'):
-                curProvider.onlyspasearch = config.checkbox_to_value(kwargs.get(curProvider.get_id('_onlyspasearch')))
+            if hasattr(curTorrentProvider, 'engrelease'):
+                try:
+                    curTorrentProvider.engrelease = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_engrelease'])
+                except Exception:
+                    curTorrentProvider.engrelease = 0
 
-            if hasattr(curProvider, 'sorting'):
-                curProvider.sorting = str(kwargs.get(curProvider.get_id('_sorting'), 'seeders')).strip()
+            if hasattr(curTorrentProvider, 'onlyspasearch'):
+                try:
+                    curTorrentProvider.onlyspasearch = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_onlyspasearch'])
+                except Exception:
+                    curTorrentProvider.onlyspasearch = 0
 
-            if hasattr(curProvider, 'freeleech'):
-                curProvider.freeleech = config.checkbox_to_value(kwargs.get(curProvider.get_id('_freeleech')))
+            if hasattr(curTorrentProvider, 'sorting'):
+                try:
+                    curTorrentProvider.sorting = str(kwargs[curTorrentProvider.get_id() + '_sorting']).strip()
+                except Exception:
+                    curTorrentProvider.sorting = 'seeders'
 
-            if hasattr(curProvider, 'search_mode'):
-                curProvider.search_mode = str(kwargs.get(curProvider.get_id('_search_mode'), 'eponly')).strip()
+            if hasattr(curTorrentProvider, 'freeleech'):
+                try:
+                    curTorrentProvider.freeleech = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_freeleech'])
+                except Exception:
+                    curTorrentProvider.freeleech = 0
 
-            if hasattr(curProvider, 'search_fallback'):
-                curProvider.search_fallback = config.checkbox_to_value(kwargs.get(curProvider.get_id('_search_fallback')))
+            if hasattr(curTorrentProvider, 'search_mode'):
+                try:
+                    curTorrentProvider.search_mode = str(kwargs[curTorrentProvider.get_id() + '_search_mode']).strip()
+                except Exception:
+                    curTorrentProvider.search_mode = 'eponly'
 
-            if hasattr(curProvider, 'enable_daily'):
-                curProvider.enable_daily = curProvider.can_daily and config.checkbox_to_value(kwargs.get(curProvider.get_id('_enable_daily')))
+            if hasattr(curTorrentProvider, 'search_fallback'):
+                try:
+                    curTorrentProvider.search_fallback = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_search_fallback'])
+                except Exception:
+                    curTorrentProvider.search_fallback = 0  # these exceptions are catching unselected checkboxes
 
-            if hasattr(curProvider, 'enable_backlog'):
-                curProvider.enable_backlog = curProvider.can_backlog and config.checkbox_to_value(kwargs.get(curProvider.get_id('_enable_backlog')))
+            if hasattr(curTorrentProvider, 'enable_daily'):
+                try:
+                    curTorrentProvider.enable_daily = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_enable_daily'])
+                except Exception:
+                    curTorrentProvider.enable_daily = 0  # these exceptions are actually catching unselected checkboxes
 
-            if hasattr(curProvider, 'cat'):
-                curProvider.cat = int(str(kwargs.get(curProvider.get_id('_cat'), 0)).strip())
+            if hasattr(curTorrentProvider, 'enable_backlog'):
+                try:
+                    curTorrentProvider.enable_backlog = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_enable_backlog'])
+                except Exception:
+                    curTorrentProvider.enable_backlog = 0  # these exceptions are actually catching unselected checkboxes
 
-            if hasattr(curProvider, 'subtitle'):
-                curProvider.subtitle = config.checkbox_to_value(kwargs.get(curProvider.get_id('_subtitle')))
+            if hasattr(curTorrentProvider, 'cat'):
+                try:
+                    curTorrentProvider.cat = int(str(kwargs[curTorrentProvider.get_id() + '_cat']).strip())
+                except Exception:
+                    curTorrentProvider.cat = 0
 
-            if curProvider.enable_cookies:
-                curProvider.cookies = str(kwargs.get(curProvider.get_id('_cookies'))).strip()
+            if hasattr(curTorrentProvider, 'subtitle'):
+                try:
+                    curTorrentProvider.subtitle = config.checkbox_to_value(
+                        kwargs[curTorrentProvider.get_id() + '_subtitle'])
+                except Exception:
+                    curTorrentProvider.subtitle = 0
+
+            if curTorrentProvider.enable_cookies:
+                try:
+                    curTorrentProvider.cookies = str(kwargs['{id}_cookies'.format(id=curTorrentProvider.get_id())]).strip()
+                except Exception:
+                    pass  # I don't want to configure a default value here, as it can also be configured intially as a custom rss torrent provider
+
+        for curNzbProvider in [prov for prov in sickbeard.providers.sortedProviderList() if
+                               prov.provider_type == GenericProvider.NZB]:
+
+            if hasattr(curNzbProvider, 'api_key'):
+                try:
+                    curNzbProvider.api_key = str(kwargs[curNzbProvider.get_id() + '_api_key']).strip()
+                except Exception:
+                    curNzbProvider.api_key = None
+
+            if hasattr(curNzbProvider, 'username'):
+                try:
+                    curNzbProvider.username = str(kwargs[curNzbProvider.get_id() + '_username']).strip()
+                except Exception:
+                    curNzbProvider.username = None
+
+            if hasattr(curNzbProvider, 'search_mode'):
+                try:
+                    curNzbProvider.search_mode = str(kwargs[curNzbProvider.get_id() + '_search_mode']).strip()
+                except Exception:
+                    curNzbProvider.search_mode = 'eponly'
+
+            if hasattr(curNzbProvider, 'search_fallback'):
+                try:
+                    curNzbProvider.search_fallback = config.checkbox_to_value(
+                        kwargs[curNzbProvider.get_id() + '_search_fallback'])
+                except Exception:
+                    curNzbProvider.search_fallback = 0  # these exceptions are actually catching unselected checkboxes
+
+            if hasattr(curNzbProvider, 'enable_daily'):
+                try:
+                    curNzbProvider.enable_daily = config.checkbox_to_value(
+                        kwargs[curNzbProvider.get_id() + '_enable_daily'])
+                except Exception:
+                    curNzbProvider.enable_daily = 0  # these exceptions are actually catching unselected checkboxes
+
+            if hasattr(curNzbProvider, 'enable_backlog'):
+                try:
+                    curNzbProvider.enable_backlog = config.checkbox_to_value(
+                        kwargs[curNzbProvider.get_id() + '_enable_backlog'])
+                except Exception:
+                    curNzbProvider.enable_backlog = 0  # these exceptions are actually catching unselected checkboxes
+
+        for curDdlProvider in [prov for prov in sickbeard.providers.sortedProviderList() if
+                                   prov.provider_type == GenericProvider.DDL]:
+
+            if hasattr(curDdlProvider, 'search_mode'):
+                try:
+                    curDdlProvider.search_mode = str(kwargs[curDdlProvider.get_id() + '_search_mode']).strip()
+                except Exception:
+                    curDdlProvider.search_mode = 'eponly'
+
+            if hasattr(curDdlProvider, 'enable_daily'):
+                try:
+                    curDdlProvider.enable_daily = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_enable_daily'])
+                except Exception:
+                    curDdlProvider.enable_daily = 0  # these exceptions are actually catching unselected checkboxes
+
+            if hasattr(curDdlProvider, 'enable_backlog'):
+                try:
+                    curDdlProvider.enable_backlog = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_enable_backlog'])
+                except Exception:
+                    curDdlProvider.enable_backlog = 0  # these exceptions are actually catching unselected checkboxes
+
+
+            if hasattr(curDdlProvider, 'storageProviderAllow'):
+                try:
+                    curDdlProvider.storageProviderAllow['Uptobox'] = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_allow_uptobox'])
+                except Exception:
+                    curDdlProvider.storageProviderAllow['Uptobox'] = False
+
+                try:
+                    curDdlProvider.storageProviderAllow['Uplea'] = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_allow_uplea'])
+                except Exception:
+                    curDdlProvider.storageProviderAllow['Uplea'] = False
+
+                try:
+                    curDdlProvider.storageProviderAllow['1fichier'] = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_allow_1fichier'])
+                except Exception:
+                    curDdlProvider.storageProviderAllow['1fichier'] = False
+
+                try:
+                    curDdlProvider.storageProviderAllow['Uploaded'] = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_allow_uploaded'])
+                except Exception:
+                    curDdlProvider.storageProviderAllow['Uploaded'] = False
+
+                try:
+                    curDdlProvider.storageProviderAllow['Rapidgator'] = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_allow_rapidgator'])
+                except Exception:
+                    curDdlProvider.storageProviderAllow['Rapidgator'] = False
+
+                try:
+                    curDdlProvider.storageProviderAllow['TurboBit'] = config.checkbox_to_value(
+                        kwargs[curDdlProvider.get_id() + '_allow_turboBit'])
+                except Exception:
+                    curDdlProvider.storageProviderAllow['TurboBit'] = False
 
         sickbeard.NEWZNAB_DATA = '!!!'.join([x.configStr() for x in sickbeard.newznabProviderList])
         sickbeard.PROVIDER_ORDER = enabled_provider_list + disabled_provider_list
