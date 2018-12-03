@@ -46,6 +46,7 @@ class GenericProvider(object):  # pylint: disable=too-many-instance-attributes
     NZB = 'nzb'
     NZBDATA = 'nzbdata'
     TORRENT = 'torrent'
+    DDL = 'ddl'
 
     PROVIDER_BROKEN = 0
     PROVIDER_DAILY = 1

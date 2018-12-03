@@ -56,6 +56,7 @@ from sickbeard.providers.rsstorrent import TorrentRssProvider
 from sickchill.helper import setup_github
 from sickchill.helper.encoding import ek
 from sickchill.helper.exceptions import ex
+from sickchill.providers.GenericProvider import GenericProvider
 from sickchill.system.Shutdown import Shutdown
 
 from sickbeard import scene_exceptions
@@ -252,12 +253,14 @@ NAMING_ANIME = None
 
 USE_NZBS = False
 USE_TORRENTS = False
+USE_DDLS = False
 
 NZB_METHOD = None
 NZB_DIR = None
 USENET_RETENTION = None
 TORRENT_METHOD = None
 TORRENT_DIR = None
+DDL_METHOD = None
 DOWNLOAD_PROPERS = False
 CHECK_PROPERS_INTERVAL = None
 ALLOW_HIGH_PRIORITY = False
@@ -352,6 +355,13 @@ TORRENT_LABEL_ANIME = ''
 TORRENT_VERIFY_CERT = False
 TORRENT_RPCURL = 'transmission'
 TORRENT_AUTH_TYPE = 'none'
+
+DDL_USERNAME = None
+DDL_PASSWORD = None
+DDL_HOST = None
+
+JDOWNLOADER_AUTO_START = None
+JDOWNLOADER_DEVICE_NAME = None
 
 SYNOLOGY_DSM_HOST = None
 SYNOLOGY_DSM_USERNAME = None
@@ -664,12 +674,12 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         # pylint: disable=global-statement
         global BRANCH, GIT_RESET, GIT_REMOTE, GIT_REMOTE_URL, CUR_COMMIT_HASH, CUR_COMMIT_BRANCH, ACTUAL_LOG_DIR, LOG_DIR, LOG_NR, LOG_SIZE, WEB_PORT, WEB_LOG,\
             ENCRYPTION_VERSION, ENCRYPTION_SECRET, WEB_ROOT, WEB_USERNAME, WEB_PASSWORD, WEB_HOST, WEB_IPV6, WEB_COOKIE_SECRET, WEB_USE_GZIP, API_KEY,\
-            ENABLE_HTTPS, HTTPS_CERT, HTTPS_KEY, HANDLE_REVERSE_PROXY, USE_NZBS, USE_TORRENTS, NZB_METHOD, NZB_DIR, DOWNLOAD_PROPERS, RANDOMIZE_PROVIDERS, \
+            ENABLE_HTTPS, HTTPS_CERT, HTTPS_KEY, HANDLE_REVERSE_PROXY, USE_NZBS, USE_TORRENTS, USE_DDLS, NZB_METHOD, NZB_DIR, DOWNLOAD_PROPERS, RANDOMIZE_PROVIDERS, \
             CHECK_PROPERS_INTERVAL, ALLOW_HIGH_PRIORITY, SAB_FORCED, TORRENT_METHOD, NOTIFY_ON_LOGIN, SAB_USERNAME, SAB_PASSWORD, SAB_APIKEY, SAB_CATEGORY, \
             SAB_CATEGORY_BACKLOG, SAB_CATEGORY_ANIME, SAB_CATEGORY_ANIME_BACKLOG, SAB_HOST,  NZBGET_USERNAME, NZBGET_PASSWORD, NZBGET_CATEGORY, \
             NZBGET_CATEGORY_BACKLOG, NZBGET_CATEGORY_ANIME, NZBGET_CATEGORY_ANIME_BACKLOG, NZBGET_PRIORITY, NZBGET_HOST, NZBGET_USE_HTTPS,\
             backlogSearchScheduler, TORRENT_USERNAME, TORRENT_PASSWORD, TORRENT_HOST, TORRENT_PATH, TORRENT_SEED_TIME, TORRENT_PAUSED, TORRENT_HIGH_BANDWIDTH,\
-            TORRENT_LABEL, TORRENT_LABEL_ANIME, TORRENT_VERIFY_CERT, TORRENT_RPCURL, TORRENT_AUTH_TYPE, USE_KODI, KODI_ALWAYS_ON, KODI_NOTIFY_ONSNATCH, \
+            TORRENT_LABEL, TORRENT_LABEL_ANIME, TORRENT_VERIFY_CERT, TORRENT_RPCURL, TORRENT_AUTH_TYPE, DDL_METHOD,USE_KODI, KODI_ALWAYS_ON, KODI_NOTIFY_ONSNATCH, \
             KODI_NOTIFY_ONDOWNLOAD, KODI_NOTIFY_ONSUBTITLEDOWNLOAD, KODI_UPDATE_FULL, KODI_UPDATE_ONLYFIRST, KODI_UPDATE_LIBRARY, KODI_HOST, KODI_USERNAME, \
             KODI_PASSWORD, BACKLOG_FREQUENCY,  USE_TRAKT, TRAKT_USERNAME, TRAKT_ACCESS_TOKEN, TRAKT_REFRESH_TOKEN, TRAKT_REMOVE_WATCHLIST, \
             TRAKT_SYNC_WATCHLIST, TRAKT_REMOVE_SHOW_FROM_SICKCHILL, TRAKT_METHOD_ADD, TRAKT_START_PAUSED, traktCheckerScheduler, TRAKT_USE_RECOMMENDED,\
@@ -719,7 +729,9 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
             DOWNLOAD_URL, BACKLOG_DAYS, GIT_AUTH_TYPE, GIT_USERNAME, GIT_PASSWORD, GIT_TOKEN, DEVELOPER, DISPLAY_ALL_SEASONS, SSL_VERIFY, NEWS_LAST_READ, \
             NEWS_LATEST, SOCKET_TIMEOUT, SYNOLOGY_DSM_HOST, SYNOLOGY_DSM_USERNAME, SYNOLOGY_DSM_PASSWORD, SYNOLOGY_DSM_PATH, GUI_LANG, SICKCHILL_BACKGROUND, \
             SICKCHILL_BACKGROUND_PATH, FANART_BACKGROUND, FANART_BACKGROUND_OPACITY, CUSTOM_CSS, CUSTOM_CSS_PATH, USE_SLACK, SLACK_NOTIFY_SNATCH, \
-            SLACK_NOTIFY_DOWNLOAD, SLACK_NOTIFY_SUBTITLEDOWNLOAD, SLACK_WEBHOOK, USE_DISCORD, DISCORD_NOTIFY_SNATCH, DISCORD_NOTIFY_DOWNLOAD, DISCORD_WEBHOOK
+            SLACK_NOTIFY_DOWNLOAD, SLACK_NOTIFY_SUBTITLEDOWNLOAD, SLACK_WEBHOOK, USE_DISCORD, DISCORD_NOTIFY_SNATCH, DISCORD_NOTIFY_DOWNLOAD, DISCORD_WEBHOOK, \
+            DDL_USERNAME, DDL_PASSWORD, DDL_METHOD, DDL_HOST, \
+            JDOWNLOADER_AUTO_START, JDOWNLOADER_DEVICE_NAME
 
         if __INITIALIZED__:
             return False
@@ -748,6 +760,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         check_section(CFG, 'pyTivo')
         check_section(CFG, 'Slack')
         check_section(CFG, 'Discord')
+        check_section(CFG, 'Jdownloader')
 
         # Need to be before any passwords
         ENCRYPTION_VERSION = check_setting_int(CFG, 'General', 'encryption_version', min_val=0, max_val=2)
@@ -977,6 +990,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
 
         USE_NZBS = check_setting_bool(CFG, 'General', 'use_nzbs', USE_NZBS)
         USE_TORRENTS = check_setting_bool(CFG, 'General', 'use_torrents', USE_TORRENTS)
+        USE_DDLS = check_setting_bool(CFG, 'General', 'use_ddls', USE_DDLS)
 
         NZB_METHOD = check_setting_str(CFG, 'General', 'nzb_method', 'blackhole')
         if NZB_METHOD not in ('blackhole', 'sabnzbd', 'nzbget', 'download_station'):
@@ -987,6 +1001,10 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
             'blackhole', 'utorrent', 'transmission', 'deluge', 'deluged', 'download_station', 'rtorrent', 'qbittorrent', 'mlnet', 'putio'
         ):
             TORRENT_METHOD = 'blackhole'
+
+        DDL_METHOD = check_setting_str(CFG, 'General', 'ddl_method', 'jdownloader')
+        if DDL_METHOD not in ('jdownloader', 'pyload'):
+            DDL_METHOD = 'jdownloader'
 
         DOWNLOAD_PROPERS = check_setting_bool(CFG, 'General', 'download_propers', True)
         CHECK_PROPERS_INTERVAL = check_setting_str(CFG, 'General', 'check_propers_interval')
@@ -1028,6 +1046,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
 
         NZB_DIR = check_setting_str(CFG, 'Blackhole', 'nzb_dir')
         TORRENT_DIR = check_setting_str(CFG, 'Blackhole', 'torrent_dir')
+        DDL_DIR = check_setting_str(CFG, 'Blackhole', 'ddl_dir')
 
         TV_DOWNLOAD_DIR = check_setting_str(CFG, 'General', 'tv_download_dir')
         PROCESS_AUTOMATICALLY = check_setting_bool(CFG, 'General', 'process_automatically')
@@ -1104,6 +1123,13 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         SYNOLOGY_DSM_USERNAME = check_setting_str(CFG, 'Synology', 'username', censor_log=True)
         SYNOLOGY_DSM_PASSWORD = check_setting_str(CFG, 'Synology', 'password', censor_log=True)
         SYNOLOGY_DSM_PATH = check_setting_str(CFG, 'Synology', 'path')
+
+        DDL_USERNAME = check_setting_str(CFG, 'DDL', 'ddl_username', '', censor_log=True)
+        DDL_PASSWORD = check_setting_str(CFG, 'DDL', 'ddl_password', '', censor_log=True)
+        DDL_HOST = check_setting_str(CFG, 'DDL', 'ddl_host')
+
+        JDOWNLOADER_DEVICE_NAME = check_setting_str(CFG, 'JDOWNLOADER', 'jdownloader_device_name', '', censor_log=True)
+        JDOWNLOADER_AUTO_START = check_setting_int(CFG, 'JDOWNLOADER', 'jdownloader_auto_start', 0)
 
         helpers.manage_torrents_url(reset=True)
 
@@ -1407,62 +1433,134 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         torrentRssProviderList = TorrentRssProvider.providers_list(TORRENTRSS_DATA)
 
         # dynamically load provider settings
-        for curProvider in providers.sortedProviderList():
-            curProvider.enabled = (curProvider.can_daily or curProvider.can_backlog) and \
-                                  check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id())
-            if hasattr(curProvider, 'custom_url'):
-                curProvider.custom_url = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_custom_url'), '', censor_log=True)
-            if hasattr(curProvider, 'api_key'):
-                curProvider.api_key = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_api_key'), censor_log=True)
-            if hasattr(curProvider, 'hash'):
-                curProvider.hash = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_hash'), censor_log=True)
-            if hasattr(curProvider, 'digest'):
-                curProvider.digest = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_digest'), censor_log=True)
-            if hasattr(curProvider, 'username'):
-                curProvider.username = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_username'), censor_log=True)
-            if hasattr(curProvider, 'password'):
-                curProvider.password = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_password'), censor_log=True)
-            if hasattr(curProvider, 'passkey'):
-                curProvider.passkey = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_passkey'), censor_log=True)
-            if hasattr(curProvider, 'pin'):
-                curProvider.pin = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_pin'), censor_log=True)
-            if hasattr(curProvider, 'confirmed'):
-                curProvider.confirmed = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_confirmed'), True)
-            if hasattr(curProvider, 'ranked'):
-                curProvider.ranked = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_ranked'), True)
-            if hasattr(curProvider, 'engrelease'):
-                curProvider.engrelease = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_engrelease'))
-            if hasattr(curProvider, 'onlyspasearch'):
-                curProvider.onlyspasearch = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_onlyspasearch'))
-            if hasattr(curProvider, 'sorting'):
-                curProvider.sorting = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_sorting'), 'seeders')
-            if hasattr(curProvider, 'options'):
-                curProvider.options = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_options'), '')
-            if hasattr(curProvider, 'ratio'):
-                curProvider.ratio = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_ratio'), '')
-            if hasattr(curProvider, 'minseed'):
-                curProvider.minseed = check_setting_int(CFG, curProvider.get_id().upper(), curProvider.get_id('_minseed'), 1, min_val=0)
-            if hasattr(curProvider, 'minleech'):
-                curProvider.minleech = check_setting_int(CFG, curProvider.get_id().upper(), curProvider.get_id('_minleech'), 0, min_val=0)
-            if hasattr(curProvider, 'freeleech'):
-                curProvider.freeleech = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_freeleech'))
-            if hasattr(curProvider, 'search_mode'):
-                curProvider.search_mode = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_search_mode'), 'eponly')
-            if hasattr(curProvider, 'search_fallback'):
-                curProvider.search_fallback = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_search_fallback'))
-            if hasattr(curProvider, 'enable_daily'):
-                curProvider.enable_daily = curProvider.can_daily and check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id(
-                    '_enable_daily'), True)
-            if hasattr(curProvider, 'enable_backlog'):
-                curProvider.enable_backlog = curProvider.can_backlog and check_setting_bool(
-                    CFG, curProvider.get_id().upper(), curProvider.get_id('_enable_backlog'), curProvider.can_backlog
-                )
-            if hasattr(curProvider, 'cat'):
-                curProvider.cat = check_setting_int(CFG, curProvider.get_id().upper(), curProvider.get_id('_cat'), 0)
-            if hasattr(curProvider, 'subtitle'):
-                curProvider.subtitle = check_setting_bool(CFG, curProvider.get_id().upper(), curProvider.get_id('_subtitle'))
-            if hasattr(curProvider, 'cookies'):
-                curProvider.cookies = check_setting_str(CFG, curProvider.get_id().upper(), curProvider.get_id('_cookies'), censor_log=True)
+        for curTorrentProvider in [curProvider for curProvider in providers.sortedProviderList() if
+                                   curProvider.provider_type == GenericProvider.TORRENT]:
+            curTorrentProvider.enabled = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id())
+            if hasattr(curTorrentProvider, 'custom_url'):
+                curTorrentProvider.custom_url = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                                  curTorrentProvider.get_id() + '_custom_url',
+                                                                  '', censor_log=True)
+            if hasattr(curTorrentProvider, 'api_key'):
+                curTorrentProvider.api_key = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_api_key', censor_log=True)
+            if hasattr(curTorrentProvider, 'hash'):
+                curTorrentProvider.hash = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                            curTorrentProvider.get_id() + '_hash', censor_log=True)
+            if hasattr(curTorrentProvider, 'digest'):
+                curTorrentProvider.digest = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                              curTorrentProvider.get_id() + '_digest', censor_log=True)
+            if hasattr(curTorrentProvider, 'username'):
+                curTorrentProvider.username = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                                curTorrentProvider.get_id() + '_username', censor_log=True)
+            if hasattr(curTorrentProvider, 'password'):
+                curTorrentProvider.password = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                                curTorrentProvider.get_id() + '_password', censor_log=True)
+            if hasattr(curTorrentProvider, 'passkey'):
+                curTorrentProvider.passkey = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_passkey', censor_log=True)
+            if hasattr(curTorrentProvider, 'pin'):
+                curTorrentProvider.pin = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                           curTorrentProvider.get_id() + '_pin', censor_log=True)
+            if hasattr(curTorrentProvider, 'confirmed'):
+                curTorrentProvider.confirmed = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id() + '_confirmed', True)
+
+            if hasattr(curTorrentProvider, 'ranked'):
+                curTorrentProvider.ranked = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id() + '_ranked', True)
+
+            if hasattr(curTorrentProvider, 'engrelease'):
+                curTorrentProvider.engrelease = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id() + '_engrelease')
+
+            if hasattr(curTorrentProvider, 'onlyspasearch'):
+                curTorrentProvider.onlyspasearch = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id() + '_onlyspasearch')
+
+            if hasattr(curTorrentProvider, 'sorting'):
+                curTorrentProvider.sorting = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_sorting', 'seeders')
+            if hasattr(curTorrentProvider, 'options'):
+                curTorrentProvider.options = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_options', '')
+            if hasattr(curTorrentProvider, 'ratio'):
+                curTorrentProvider.ratio = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                             curTorrentProvider.get_id() + '_ratio', '')
+            if hasattr(curTorrentProvider, 'minseed'):
+                curTorrentProvider.minseed = check_setting_int(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_minseed', 1, min_val=0)
+            if hasattr(curTorrentProvider, 'minleech'):
+                curTorrentProvider.minleech = check_setting_int(CFG, curTorrentProvider.get_id().upper(),
+                                                                curTorrentProvider.get_id() + '_minleech', 0, min_val=0)
+            if hasattr(curTorrentProvider, 'freeleech'):
+                curTorrentProvider.freeleech = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id() + '_freeleech')
+            if hasattr(curTorrentProvider, 'search_mode'):
+                curTorrentProvider.search_mode = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                                   curTorrentProvider.get_id() + '_search_mode',
+                                                                   'eponly')
+            if hasattr(curTorrentProvider, 'search_fallback'):
+                curTorrentProvider.search_fallback = check_setting_bool(CFG, curTorrentProvider.get_id().upper(),
+                                                                            curTorrentProvider.get_id() + '_search_fallback')
+
+            if hasattr(curTorrentProvider, 'enable_daily'):
+                curTorrentProvider.enable_daily = check_setting_bool(CFG, curTorrentProvider.get_id().upper(),
+                                                                         curTorrentProvider.get_id() + '_enable_daily', True)
+
+            if hasattr(curTorrentProvider, 'enable_backlog'):
+                curTorrentProvider.enable_backlog = check_setting_bool(CFG, curTorrentProvider.get_id().upper(),
+                                                                           curTorrentProvider.get_id() + '_enable_backlog',
+                                                                           curTorrentProvider.supports_backlog)
+
+            if hasattr(curTorrentProvider, 'cat'):
+                curTorrentProvider.cat = check_setting_int(CFG, curTorrentProvider.get_id().upper(),
+                                                           curTorrentProvider.get_id() + '_cat', 0)
+            if hasattr(curTorrentProvider, 'subtitle'):
+                curTorrentProvider.subtitle = check_setting_bool(CFG, curTorrentProvider.get_id().upper(), curTorrentProvider.get_id() + '_subtitle')
+
+            if hasattr(curTorrentProvider, 'cookies'):
+                curTorrentProvider.cookies = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_cookies', censor_log=True)
+
+        for curNzbProvider in [curProvider for curProvider in providers.sortedProviderList() if
+                               curProvider.provider_type == GenericProvider.NZB]:
+            curNzbProvider.enabled = check_setting_bool(CFG, curNzbProvider.get_id().upper(), curNzbProvider.get_id())
+
+            if hasattr(curNzbProvider, 'api_key'):
+                curNzbProvider.api_key = check_setting_str(CFG, curNzbProvider.get_id().upper(),
+                                                           curNzbProvider.get_id() + '_api_key', censor_log=True)
+
+            if hasattr(curNzbProvider, 'username'):
+                curNzbProvider.username = check_setting_str(CFG, curNzbProvider.get_id().upper(), curNzbProvider.get_id() + '_username', censor_log=True)
+            if hasattr(curNzbProvider, 'search_mode'):
+                curNzbProvider.search_mode = check_setting_str(CFG, curNzbProvider.get_id().upper(), curNzbProvider.get_id() + '_search_mode', 'eponly')
+
+            if hasattr(curNzbProvider, 'search_fallback'):
+                curNzbProvider.search_fallback = check_setting_bool(CFG, curNzbProvider.get_id().upper(), curNzbProvider.get_id() + '_search_fallback')
+
+            if hasattr(curNzbProvider, 'enable_daily'):
+                curNzbProvider.enable_daily = check_setting_bool(CFG, curNzbProvider.get_id().upper(), curNzbProvider.get_id() + '_enable_daily', True)
+
+            if hasattr(curNzbProvider, 'enable_backlog'):
+                curNzbProvider.enable_backlog = check_setting_bool(CFG, curNzbProvider.get_id().upper(), curNzbProvider.get_id() + '_enable_backlog',
+                                                                  curNzbProvider.supports_backlog)
+
+        #TODO REWORKS
+        for curDdlProvider in [curProvider for curProvider in providers.sortedProviderList() if
+                               curProvider.provider_type == GenericProvider.DDL]:
+            curDdlProvider.enabled = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id())
+            if hasattr(curDdlProvider, 'search_mode'):
+                curDdlProvider.search_mode = check_setting_str(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_search_mode', 'eponly')
+            if hasattr(curDdlProvider, 'enable_daily'):
+                curDdlProvider.enable_daily = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_enable_daily', True)
+            if hasattr(curDdlProvider, 'enable_backlog'):
+                curDdlProvider.enable_backlog = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_enable_backlog',
+                                                                  curDdlProvider.supports_backlog)
+            if hasattr(curDdlProvider, "storageProviderAllow"):
+                # curDdlProvider.storageProviderAllow['Uplea'] = bool(check_setting_int(CFG, curDdlProvider.get_id().upper(),
+                #                                                      curDdlProvider.get_id() + '_allow_uplea',
+                #                                                      0))
+                curDdlProvider.storageProviderAllow['Uptobox'] = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_allow_uptobox', False)
+                curDdlProvider.storageProviderAllow['Uplea'] = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_allow_uplea', False)
+                curDdlProvider.storageProviderAllow['1fichier'] = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_allow_1fichier', False)
+                curDdlProvider.storageProviderAllow['Uploaded'] = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_allow_uploaded', False)
+                curDdlProvider.storageProviderAllow['Rapidgator'] = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_allow_rapidgator', False)
+                curDdlProvider.storageProviderAllow['TurboBit'] = check_setting_bool(CFG, curDdlProvider.get_id().upper(), curDdlProvider.get_id() + '_allow_turboBit', False)
 
         providers.check_enabled_providers()
 
@@ -1777,6 +1875,33 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
         if hasattr(curProvider, 'cookies'):
             new_config[curProvider.get_id().upper()][curProvider.get_id('_cookies')] = curProvider.cookies
 
+    for curDdlProvider in [curProvider for curProvider in providers.sortedProviderList() if
+                           curProvider.provider_type == GenericProvider.DDL]:
+        new_config[curDdlProvider.get_id().upper()] = {}
+        new_config[curDdlProvider.get_id().upper()][curDdlProvider.get_id()] = int(curDdlProvider.enabled)
+        if hasattr(curDdlProvider, 'search_mode'):
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_search_mode'] = curDdlProvider.search_mode
+        if hasattr(curDdlProvider, 'enable_daily'):
+            new_config[curDdlProvider.get_id().upper()][curDdlProvider.get_id() + '_enable_daily'] = int(
+                curDdlProvider.enable_daily)
+        if hasattr(curDdlProvider, 'enable_backlog'):
+            new_config[curDdlProvider.get_id().upper()][curDdlProvider.get_id() + '_enable_backlog'] = int(
+                curDdlProvider.enable_backlog)
+        if hasattr(curDdlProvider, "storageProviderAllow"):
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_allow_uptobox'] = int(curDdlProvider.storageProviderAllow['Uptobox'])
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_allow_uplea'] = int(curDdlProvider.storageProviderAllow['Uplea'])
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_allow_1fichier'] = int(curDdlProvider.storageProviderAllow['1fichier'])
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_allow_uploaded'] = int(curDdlProvider.storageProviderAllow['Uploaded'])
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_allow_rapidgator'] = int(curDdlProvider.storageProviderAllow['Rapidgator'])
+            new_config[curDdlProvider.get_id().upper()][
+                curDdlProvider.get_id() + '_allow_turboBit'] = int(curDdlProvider.storageProviderAllow['TurboBit'])
+
     new_config.update({
         'General': {
             'git_auth_type': int(GIT_AUTH_TYPE),
@@ -1821,8 +1946,10 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'handle_reverse_proxy': int(HANDLE_REVERSE_PROXY),
             'use_nzbs': int(USE_NZBS),
             'use_torrents': int(USE_TORRENTS),
+            'use_ddls': int(USE_DDLS),
             'nzb_method': NZB_METHOD,
             'torrent_method': TORRENT_METHOD,
+            'ddl_method': DDL_METHOD,
             'usenet_retention': int(USENET_RETENTION),
             'autopostprocessor_frequency': int(AUTOPOSTPROCESSOR_FREQUENCY),
             'dailysearch_frequency': int(DAILYSEARCH_FREQUENCY),
@@ -1976,6 +2103,17 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'torrent_verify_cert': int(TORRENT_VERIFY_CERT),
             'torrent_rpcurl': TORRENT_RPCURL,
             'torrent_auth_type': TORRENT_AUTH_TYPE,
+        },
+
+        'DDL': {
+            'ddl_username': DDL_USERNAME,
+            'ddl_password': helpers.encrypt(DDL_PASSWORD, ENCRYPTION_VERSION),
+            'ddl_host': DDL_HOST,
+        },
+
+        'JDOWNLOADER': {
+            'jdownloader_device_name': JDOWNLOADER_DEVICE_NAME,
+            'jdownloader_auto_start': int(JDOWNLOADER_AUTO_START)
         },
 
         'KODI': {

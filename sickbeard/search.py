@@ -132,6 +132,9 @@ def snatchEpisode(result, endStatus=SNATCHED):  # pylint: disable=too-many-branc
             else:
                 logger.log("Torrent file content is empty", logger.WARNING)
                 dlResult = False
+    elif result.resultType == "ddl":
+        client = clients.getClientInstance(sickbeard.DDL_METHOD)()
+        dlResult = client.sendDDL(result)
     else:
         logger.log("Unknown result type, unable to download it ({0!r})".format(result.resultType), logger.ERROR)
         dlResult = False
@@ -413,7 +416,7 @@ def searchForNeededEpisodes():
 
     if not didSearch:
         logger.log(
-            "No NZB/Torrent providers found or enabled in the sickchill config for daily searches. Please check your settings.",
+            "No NZB/Torrent/DLL providers found or enabled in the sickchill config for daily searches. Please check your settings.",
             logger.INFO)
 
     return foundResults.values()
@@ -697,7 +700,7 @@ def searchProviders(show, episodes, manualSearch=False, downCurQuality=False):  
             break
 
     if not didSearch:
-        logger.log("No NZB/Torrent providers found or enabled in the sickchill config for backlog searches. Please check your settings.",
+        logger.log("No NZB/Torrent/DLL providers found or enabled in the sickchill config for backlog searches. Please check your settings.",
                    logger.INFO)
 
     # Remove provider from thread name before return results
